@@ -1,26 +1,17 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import prints
 import random
 import discord 
 from discord.ext import commands 
 import os
 import aiohttp
 import logging
-import json
-
-
+import html
 
 # Messages
-messages = [
-    "Hello, world!",
-    "How are you today?",
-    "It's a great day to learn Python!",
-    "Beep boop, I'm a bot.",
-    "Did you know? Python is named after Monty Python.",
-]
-
-
+messages = prints.messages
 
 # Define intents
 intents = discord.Intents.default()  # This enables the default intents
@@ -31,19 +22,12 @@ intents.message_content = True
 # Command prefix
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# Extensions
-# bot.load_extension('animal_cog')
-
-# Token
+# Defining api keys
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CAT_API_KEY = os.getenv("CAT_API_KEY")
 MEME_API_KEY = os.getenv("MEME_API_KEY")
 
-
-
-
-
-
+# Commands
 @bot.command(name='commands', help='Lists all available commands')
 async def list_commands(ctx):
     commands_list = []
@@ -92,8 +76,39 @@ async def meme(ctx):
             except (KeyError, IndexError) as e:
                 await ctx.send("Failed to fetch meme image due to unexpected data format.")
 
+@bot.command(name='trivia', help='Starts a trivia game with a random question')
+async def trivia(ctx):
+    url = 'https://opentdb.com/api.php?amount=1&type=multiple'
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                question = data['results'][0]
+                question_text = html.unescape(question['question'])
+                correct_answer = html.unescape(question['correct_answer'])
+                incorrect_answers = [html.unescape(answer) for answer in question['incorrect_answers']]
+                all_answers = incorrect_answers + [correct_answer]
+                random.shuffle(all_answers)
+
+                def check(m):
+                    return m.author == ctx.author and m.channel == ctx.channel
+
+                options_text = "\n".join([f"{i+1}. {answer}" for i, answer in enumerate(all_answers)])
+                await ctx.send(f"**Trivia Question:**\n{question_text}\n\n**Options:**\n{options_text}")
+
+                try:
+                    user_response = await bot.wait_for('message', check=check, timeout=30)
+                    answer_index = int(user_response.content.strip()) - 1
+                    if all_answers[answer_index] == correct_answer:
+                        await ctx.send(f"Correct! 🎉 The answer was: {correct_answer}")
+                    else:
+                        await ctx.send(f"Oops! The correct answer was: {correct_answer}")
+                except Exception as e:
+                    await ctx.send(f"Time's up! The correct answer was: {correct_answer}")
 
 
+# Events
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
