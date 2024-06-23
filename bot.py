@@ -27,6 +27,21 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CAT_API_KEY = os.getenv("CAT_API_KEY")
 MEME_API_KEY = os.getenv("MEME_API_KEY")
 
+# @bot.event
+# async def on_ready():
+#     print(f'{bot.user} has connected to Discord!')
+#     channel_id = 1254429580656115727
+#     channel = bot.get_channel(channel_id)
+#     msg = random.choice(messages)
+#     if channel:
+#         await channel.send(msg)
+
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user.name}')
+    print('Registered commands:', [command.name for command in bot.commands])
+
+
 # Commands
 @bot.command(name='commands', help='Lists all available commands')
 async def list_commands(ctx):
@@ -59,8 +74,8 @@ async def ping(ctx):
     await ctx.send('Pong!')
 
 
-@bot.command(name="meme", help="Displays a random programmer meme")
-async def meme(ctx):
+@bot.command(name="programmingMeme", help="Displays a random programming meme")
+async def progMeme(ctx):
     url = "https://programming-memes-images.p.rapidapi.com/v1/memes"
     headers = {
         "x-rapidapi-key": MEME_API_KEY,
@@ -74,7 +89,26 @@ async def meme(ctx):
                 meme_image_url = data[0]['image']
                 await ctx.send(meme_image_url)
             except (KeyError, IndexError) as e:
-                await ctx.send("Failed to fetch meme image due to unexpected data format.")
+                await ctx.send("Beep, boop!")
+
+
+@bot.command(name="meme", help="Displays a random meme")
+async def meme(ctx):
+    url = "https://reddit-meme.p.rapidapi.com/memes/trending"
+    headers = {
+        "x-rapidapi-key": MEME_API_KEY,
+        "x-rapidapi-host": "reddit-meme.p.rapidapi.com"
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+            try:
+                meme_image_url = data[0]['image']
+                await ctx.send(meme_image_url)
+            except (KeyError, IndexError) as e:
+                await ctx.send("Beep, boop!")
+
 
 @bot.command(name='trivia', help='Starts a trivia game with a random question')
 async def trivia(ctx):
@@ -107,29 +141,44 @@ async def trivia(ctx):
                 except Exception as e:
                     await ctx.send(f"Time's up! The correct answer was: {correct_answer}")
 
+@bot.command(name='movie', help='Fetches information about a movie from OMDB')
+async def movie(ctx, *, movie_name: str):
+    MOVIE_API_KEY = os.getenv("MOVIE_API_KEY")
+    url = f'http://www.omdbapi.com/?apikey={MOVIE_API_KEY}&t={movie_name}'
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data['Response'] == 'True':
+                    embed = discord.Embed(title=data['Title'], description=data['Plot'], color=0x00ff00)
+                    embed.set_thumbnail(url=data['Poster'])
+                    embed.add_field(name='Year', value=data['Year'], inline=True)
+                    embed.add_field(name='Released', value=data['Released'], inline=True)
+                    embed.add_field(name='Runtime', value=data['Runtime'], inline=True)
+                    embed.add_field(name='Genre', value=data['Genre'], inline=True)
+                    embed.add_field(name='Director', value=data['Director'], inline=True)
+                    embed.add_field(name='Actors', value=data['Actors'], inline=True)
+                    embed.add_field(name='IMDB Rating', value=data['imdbRating'], inline=True)
+                    embed.add_field(name='Box Office', value=data['BoxOffice'], inline=True)
+                    
+                    ratings = data.get('Ratings', [])
+                    for rating in ratings:
+                        embed.add_field(name=rating['Source'], value=rating['Value'], inline=True)
+                    
+                    await ctx.send(embed=embed)
+                else:
+                    await ctx.send(f"Movie not found: {movie_name}")
+            else:
+                await ctx.send("Failed to fetch movie information.")
+
+
 
 # Events
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
         await ctx.send('Please provide all required arguments.')
-    elif isinstance(error, commands.CommandNotFound):
-        await ctx.send('Command not found.')
-    else:
-        # Log the error type and message for debugging
-        logging.error(f'Unhandled error: {type(error).__name__}: {error}')
-        await ctx.send('An error occurred.')
-
-
-@bot.event
-async def on_ready():
-    print(f'{bot.user} has connected to Discord!')
-    channel_id = 1254429580656115727  
-    channel = bot.get_channel(channel_id)
-    msg = random.choice(messages)
-    if channel: 
-        await channel.send(msg)
-
 
 
 
