@@ -10,6 +10,7 @@ import aiohttp
 import logging
 import html
 import asyncio
+from bs4 import BeautifulSoup
 
 # Messages
 messages = prints.messages
@@ -27,6 +28,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CAT_API_KEY = os.getenv("CAT_API_KEY")
 MEME_API_KEY = os.getenv("MEME_API_KEY")
+GENIUS_API_KEY = os.getenv("GENIUS_API_KEY")
 
 @bot.event
 async def on_ready():
@@ -197,6 +199,109 @@ async def flip(ctx):
     await asyncio.sleep(0.5)
     result = random.choice(['Heads', 'Tails'])
     await message.edit(content=f'The coin landed on: {result} 🎉')
+
+# Dice Roller
+@bot.command(name='roll', help='Rolls a die. Optionally specify 6 or 20 for the number of sides (e.g., !roll 20 for a 20-sided die).')
+async def roll(ctx, sides: int = 6):
+    if sides not in [6, 20]:
+        await ctx.send("Please specify either 6 or 20 sides for the die.")
+        return
+    
+    rolling_messages = {
+        6: [
+            "Rolling the 6-sided die... 🎲",
+            "Rolling the 6-sided die... 🎲 1...",
+            "Rolling the 6-sided die... 🎲 2...",
+            "Rolling the 6-sided die... 🎲 3...",
+            "Rolling the 6-sided die... 🎲 4...",
+            "Rolling the 6-sided die... 🎲 5...",
+            "Rolling the 6-sided die... 🎲 6..."
+        ],
+        20: [
+            "Rolling the 20-sided die... 🎲",
+            "Rolling the 20-sided die... 🎲 1...",
+            "Rolling the 20-sided die... 🎲 2...",
+            "Rolling the 20-sided die... 🎲 3...",
+            "Rolling the 20-sided die... 🎲 4...",
+            "Rolling the 20-sided die... 🎲 5...",
+            "Rolling the 20-sided die... 🎲 6...",
+            "Rolling the 20-sided die... 🎲 7...",
+            "Rolling the 20-sided die... 🎲 8...",
+            "Rolling the 20-sided die... 🎲 9...",
+            "Rolling the 20-sided die... 🎲 10...",
+            "Rolling the 20-sided die... 🎲 11...",
+            "Rolling the 20-sided die... 🎲 12...",
+            "Rolling the 20-sided die... 🎲 13...",
+            "Rolling the 20-sided die... 🎲 14...",
+            "Rolling the 20-sided die... 🎲 15...",
+            "Rolling the 20-sided die... 🎲 16...",
+            "Rolling the 20-sided die... 🎲 17...",
+            "Rolling the 20-sided die... 🎲 18...",
+            "Rolling the 20-sided die... 🎲 19...",
+            "Rolling the 20-sided die... 🎲 20..."
+        ]
+    }
+    
+    message = await ctx.send(rolling_messages[sides][0])
+    
+    for i in range(1, min(len(rolling_messages[sides]), 7)):
+        await asyncio.sleep(0.2)  # Add a 0.5 second delay between messages
+        await message.edit(content=rolling_messages[sides][i])
+    
+    await asyncio.sleep(0.5)
+    result = random.randint(1, sides)
+    await message.edit(content=f'The die landed on: {result} 🎉')
+
+
+# Lyrics
+@bot.command(name='lyrics', help='Fetches the lyrics for a specified song')
+async def lyrics(ctx, *, song_title: str):
+    url = f'https://api.genius.com/search?q={song_title}'
+    headers = {
+        'Authorization': f'Bearer {GENIUS_API_KEY}'
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data['response']['hits']:
+                    song_info = data['response']['hits'][0]['result']
+                    song_url = song_info['url']
+
+                    async with session.get(song_url) as song_response:
+                        if song_response.status == 200:
+                            soup = BeautifulSoup(await song_response.text(), 'html.parser')
+                            lyrics = ''
+
+                            for div in soup.find_all("div", class_=lambda x: x and x.startswith("Lyrics__Container")):
+                                for br in div.find_all("br"):
+                                    br.replace_with("\n")
+                                lyrics += div.get_text(separator='\n').strip() + "\n"
+
+                            if lyrics.strip():
+                                # Create and send embeds
+                                title = song_info['full_title']
+                                thumbnail = song_info['song_art_image_thumbnail_url']
+                                url = song_info['url']
+                                
+                                # Split lyrics into chunks of up to 2000 characters
+                                chunks = [lyrics[i:i+1024] for i in range(0, len(lyrics), 1024)]
+                                for i, chunk in enumerate(chunks):
+                                    embed = discord.Embed(title=title if i == 0 else '', description=chunk, color=0x1DB954, url=url)
+                                    if i == 0:
+                                        embed.set_thumbnail(url=thumbnail)
+                                    await ctx.send(embed=embed)
+                            else:
+                                await ctx.send('Lyrics not found.')
+                        else:
+                            await ctx.send("Failed to fetch lyrics from Genius.")
+                else:
+                    await ctx.send(f"No lyrics found for {song_title}")
+            else:
+                await ctx.send("Failed to fetch lyrics.")
+
+
 
 
 # Events
