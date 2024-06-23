@@ -9,6 +9,7 @@ import os
 import aiohttp
 import logging
 import html
+import asyncio
 
 # Messages
 messages = prints.messages
@@ -27,22 +28,18 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CAT_API_KEY = os.getenv("CAT_API_KEY")
 MEME_API_KEY = os.getenv("MEME_API_KEY")
 
-# @bot.event
-# async def on_ready():
-#     print(f'{bot.user} has connected to Discord!')
-#     channel_id = 1254429580656115727
-#     channel = bot.get_channel(channel_id)
-#     msg = random.choice(messages)
-#     if channel:
-#         await channel.send(msg)
-
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user.name}')
-    print('Registered commands:', [command.name for command in bot.commands])
+    print(f'{bot.user} has connected to Discord!')
+    channel_id = 1254429580656115727
+    channel = bot.get_channel(channel_id)
+    msg = random.choice(messages)
+    if channel:
+        await channel.send(msg)
 
 
 # Commands
+# Listing all available commands
 @bot.command(name='commands', help='Lists all available commands')
 async def list_commands(ctx):
     commands_list = []
@@ -54,7 +51,7 @@ async def list_commands(ctx):
     commands_message = '\n'.join(commands_list)
     await ctx.send(commands_message)
 
-
+# Cat images
 @bot.command(name='cat', help='Displays a random cat image')
 async def cat(ctx):
     api_url = "https://api.thecatapi.com/v1/images/search"
@@ -69,11 +66,13 @@ async def cat(ctx):
                 await ctx.send("Failed to fetch cat image.")
 
 
+# Ping pong test
 @bot.command( name='ping', help='Responds with "Pong!"')
 async def ping(ctx):
     await ctx.send('Pong!')
 
 
+# Programming memes
 @bot.command(name="programmingMeme", help="Displays a random programming meme")
 async def progMeme(ctx):
     url = "https://programming-memes-images.p.rapidapi.com/v1/memes"
@@ -92,6 +91,7 @@ async def progMeme(ctx):
                 await ctx.send("Beep, boop!")
 
 
+#Reddit memes 
 @bot.command(name="meme", help="Displays a random meme")
 async def meme(ctx):
     url = "https://reddit-meme.p.rapidapi.com/memes/trending"
@@ -107,9 +107,10 @@ async def meme(ctx):
                 meme_image_url = data[0]['image']
                 await ctx.send(meme_image_url)
             except (KeyError, IndexError) as e:
-                await ctx.send("Beep, boop!")
+                await ctx.send("Beep, boop!, " + str(e))
 
 
+# Quiz
 @bot.command(name='trivia', help='Starts a trivia game with a random question')
 async def trivia(ctx):
     url = 'https://opentdb.com/api.php?amount=1&type=multiple'
@@ -141,6 +142,8 @@ async def trivia(ctx):
                 except Exception as e:
                     await ctx.send(f"Time's up! The correct answer was: {correct_answer}")
 
+
+# Movie search
 @bot.command(name='movie', help='Fetches information about a movie from OMDB')
 async def movie(ctx, *, movie_name: str):
     MOVIE_API_KEY = os.getenv("MOVIE_API_KEY")
@@ -173,12 +176,40 @@ async def movie(ctx, *, movie_name: str):
                 await ctx.send("Failed to fetch movie information.")
 
 
+# Coin Flipper
+@bot.command(name='flip', help='Flips a coin and returns either Heads or Tails')
+async def flip(ctx):
+    flipping_messages = [
+        "Flipping the coin... 🪙",
+        "Flipping the coin... 🪙 Heads...",
+        "Flipping the coin... 🪙 Tails...",
+        "Flipping the coin... 🪙 Heads...",
+        "Flipping the coin... 🪙 Tails...",
+        "Flipping the coin... 🪙 Heads...",
+        "Flipping the coin... 🪙 Tails...",
+    ]
+    message = await ctx.send(flipping_messages[0])
+    
+    for i in range(1, len(flipping_messages)):
+        await asyncio.sleep(0.2)  # Add a 0.5 second delay between messages
+        await message.edit(content=flipping_messages[i])
+    
+    await asyncio.sleep(0.5)
+    result = random.choice(['Heads', 'Tails'])
+    await message.edit(content=f'The coin landed on: {result} 🎉')
+
 
 # Events
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
         await ctx.send('Please provide all required arguments.')
+    elif isinstance(error, commands.CommandNotFound):
+        await ctx.send('Command not found.')
+    else:
+        # Log the error type and message for debugging
+        logging.error(f'Unhandled error: {type(error).__name__}: {error}')
+        await ctx.send('An error occurred.')
 
 
 
